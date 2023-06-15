@@ -1,8 +1,9 @@
 version: 2.1
+
 jobs:
-  build-and-deploy:
+  build-and-push:
     docker:
-      - image: circleci/node:14
+      - image: docker:20.10.9
     steps:
       - checkout
       - setup_remote_docker
@@ -12,6 +13,12 @@ jobs:
             docker build -t ayki2/docker-session:latest .
             echo "$DOCKERHUB_PASSWORD" | docker login --username ayki2 --password-stdin
             docker push ayki2/docker-session:latest
+  pull-and-deploy:
+    docker:
+      - image: circleci/node:14
+    steps:
+      - checkout
+      - setup_remote_docker
       - run:
           name: Install SSH And Configure
           command: |
@@ -20,13 +27,20 @@ jobs:
       - run:
           name: Pull Image and Deploy
           command: |
-            ssh -o "StrictHostKeyChecking=no" -i ./iskhak.pem ubuntu@$HOST
-            docker pull ayki2/docker-session
-            docker run -d -p 2024:2024 ayki2/docker-session
+            ssh -o "StrictHostKeyChecking=no" -i ./iskhak.pem ubuntu@$HOST '
+            sudo docker pull ayki2/docker-session:latest
+            sudo docker run -d -p 80:2024 ayki2/docker-session:latest
+            '
 workflows:
   deploy:
     jobs:
-      - build-and-deploy:
+      - build-and-push:
+          filters:
+            branches:
+              only: main
+      - pull-and-deploy:
+          requires:
+            - build-and-push
           filters:
             branches:
               only: main
